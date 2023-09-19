@@ -4,26 +4,27 @@ logging.basicConfig(format='%(asctime)s.%(msecs)05d | %(levelname)s | %(filename
 
 class ApplicationConfiguration:
 
-    db_host: str = "127.0.0.1"
-    db_name: str = "timer_db"
-    db_user: str = "root"
-    db_password: str = "1234"
+    DB_HOST: str = "127.0.0.1"
+    DB_NAME: str = "timer_db"
+    DB_USER: str = "root"
+    DB_PASSWORD: str = "1234" # Should be extracted from sercret in production case
+
+    BATCH_SIZE: int = 10
 
 
     def __init__(self) -> None:
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)
-        self.logger.info("Start App")
 
         self.extract_env_variables()
-        
+        self.logger.info(f"Loading Worker with batch size: {self.BATCH_SIZE}")
 
     def extract_env_variables(self):
-        for attr in self.__annotations__:
+        for attr, attr_type in self.__annotations__.items():
             try:
-                self.__setattr__(attr, os.environ[attr])
+                self.__setattr__(attr, (attr_type)(os.environ[attr]))
             except Exception as err:
-                self.logger.warning(f"Couldn't find {attr} in environment. Run with default")
+                self.logger.warning(f"Couldn't set {attr} from environment variable. Running with default value")
                 pass
         
 app_config = ApplicationConfiguration()
