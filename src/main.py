@@ -28,7 +28,7 @@ async def controller_main_loop():
         except Exception as err:
             app_config.logger.error(f"Unexpected Error: {err}")
             error_counter += 1
-            if error_counter > 10:
+            if error_counter > app_config.RETRY_NUMBER:
                 app_config.logger.critical("Service Can't recover from error. Shutting Down")
                 exit(0)
         if wait_flag:

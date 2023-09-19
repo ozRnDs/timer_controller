@@ -9,7 +9,13 @@ class ApplicationConfiguration:
     DB_USER: str = "root"
     DB_PASSWORD: str = "1234" # Should be extracted from sercret in production case
 
+    
     BATCH_SIZE: int = 10
+
+    RETRY_NUMBER: int = 10
+
+    RECONNECT_WAIT_TIME: int = 1
+
 
 
     def __init__(self) -> None:
