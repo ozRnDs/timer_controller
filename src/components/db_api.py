@@ -17,8 +17,8 @@ from classes.timer import TimerInformation
 TABLES = {}
 TABLES['timers'] = (
     "CREATE TABLE timers ("
-    " timer_id BINARY(16) PRIMARY KEY,"
-    " timer_url VARCHAR(2083),"
+    " timer_id BINARY(16) NOT NULL,"
+    " timer_url VARCHAR(2083) NOT NULL,"
     " timer_status ENUM ('waiting','executing','done','failed') NOT NULL,"
     " timer_invoke_time DATETIME NOT NULL)"
     " ENGINE=InnoDB"
@@ -66,6 +66,30 @@ class DbApi():
                 db_cursor.close()
         return insert_data.timer_id
 
+    def get_timer_information(self, timer_uuid) -> TimerInformation:
+        get_query = "SELECT BIN_TO_UUID(timer_id), timer_url, timer_status, timer_invoke_time from timers where timer_id=UUID_TO_BIN(%(timer_id)s)"
+
+        select_data = {
+            "timer_id": timer_uuid
+        }
+        db_cursor = None
+        try:
+            db_cursor = self.db_connection.cursor()
+            db_cursor.execute(get_query,select_data)
+            response = db_cursor.fetchone()
+        except mysql.connector.Error as err:
+            if err.errno!=1411:
+                self.__error_handler__(err)
+            raise HTTPException(status_code=400, detail="Illegal UUID")
+        except Exception as err:
+            self.__error_handler__(err)
+        finally:
+            if db_cursor:
+                db_cursor.close()
+        if not response:
+            return None
+        timer_id, timer_url, timer_status, timer_invoke_time = response
+        return TimerInformation(timer_id=timer_id, timer_url=timer_url, timer_status=timer_status, timer_date=timer_invoke_time)
 
     def get_tasks_to_be_executed_at_time(self, execusion_time, limit: int=2)-> List[TimerInformation]:
         get_tasks_query = "Select BIN_TO_UUID(timer_id), timer_url, timer_status, timer_invoke_time from timers where timer_invoke_time <= %(execution_time)s and timer_status='waiting' LIMIT %(limit)s FOR UPDATE SKIP LOCKED" #ORDER BY timer_invoke_time DESC
@@ -90,21 +114,24 @@ class DbApi():
                                                          timer_url=timer_url,
                                                          timer_status=timer_status,
                                                          timer_date=timer_invoke_time))
+            pull_tasks_ids = [item.timer_id for item in tasks_to_execute]
+            self.update_tasks_status(pull_tasks_ids,'executing')
+            self.db_connection.commit()
         except Exception as err:
             self.__error_handler__(err)
         finally:
             # time.sleep(10)
             if db_cursor:
-                self.current_cursor = db_cursor
+                db_cursor.close()
         return tasks_to_execute
     
     def update_tasks_status(self, list_of_tasks: List[str], status: str):
         if len(list_of_tasks)==0:
             return
-        db_cursor = self.current_cursor
         format_strings = ','.join(['%s'] * len(list_of_tasks))
         update_query = "UPDATE timers SET timer_status=%%s WHERE BIN_TO_UUID(timer_id) in (%s)" % format_strings
         try:
+            db_cursor = self.db_connection.cursor()
             db_cursor.execute(update_query, [status]+list_of_tasks)
             self.db_connection.commit()
         except Exception as err:
@@ -134,7 +161,7 @@ class DbApi():
         except Exception as err:
             self.__error_handler__(err)
 
-    def create_table(self, table_query):
+    def create_table(self, table_query=TABLES['timers']):
         try:
             db_cursor = self.db_connection.cursor()
             db_cursor.execute(table_query)
@@ -176,6 +203,8 @@ class DbApi():
         if type(err) in (mysql.connector.errors.OperationalError, mysql.connector.errors.DatabaseError, mysql.connector.Error):
             if 'MySQL Connection not available' in str(err) or err.errno in (2013,2003):
                 self.__db_reconnect_handler__()
+            if err.errno == 1146:
+                self.create_table(TABLES["timers"])                
             raise Exception(f"DB Error: {err}")
         # logger.error(f"Unexpected Error: {err}")
         raise Exception(f"Unexpected Error: {err}")

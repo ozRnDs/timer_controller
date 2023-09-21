@@ -8,9 +8,7 @@ from typing import List
 from classes.timer import TimerInformation
 
 
-async def tasks_launcher(list_of_tasks: List[TimerInformation]):
-    handled_tasks = []
-    
+async def tasks_launcher(list_of_tasks: List[TimerInformation]):   
     async with aiohttp.ClientSession() as session:
         
         url_requests = []
