@@ -20,7 +20,13 @@ def db_fixture()-> DbApi:
     clean_timer_table_query = "Delete from timers"
     
     db_cursor = db_instance.db_connection.cursor()
+    try:
+        db_instance.create_table()
+    except Exception as err:
+        logger.error("Fixture Error: {err}")
+        raise err
     db_cursor.execute(clean_timer_table_query)
+
     db_instance.db_connection.commit()
     if db_cursor:
         db_cursor.close()
